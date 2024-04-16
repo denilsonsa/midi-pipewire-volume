@@ -11,6 +11,7 @@ https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/1654
 import json
 import os
 import re
+import select
 import subprocess
 import types
 
@@ -50,11 +51,16 @@ class PWDump:
     def __init__(self, pwdump_path:str="pw-dump"):
         """Creates the object, but doesn't launch anything yet.
         """
-        self.decoder = json.JSONDecoder()
-        self.proc = None
-        self.buffer = ""
-        self.buffer_was_reset = True
         self.pwdump_path = pwdump_path
+
+        # We need the raw_decode() method from a JSONDecoder().
+        self.decoder = json.JSONDecoder()
+        # The child process.
+        self.proc = None
+        # The unprocessed stdout buffer.
+        self.buffer = ""
+        # If the buffer was reset, we should send a "RESET" message.
+        self.buffer_was_reset = True
 
     def __repr__(self):
         return "<PWDump({!r}) pid={} fileno={}>".format(
@@ -153,8 +159,8 @@ class PWDump:
     def __next__(self):
         """Returns the next JSON object.
 
-        Non-blocking, keeps returning until no further data is available.
-        However, calling it again may return more objects.
+        Non-blocking, keeps yielding until no further data is available.
+        Calling it again later may yield more objects.
         """
         self._run_if_needed()
 
@@ -179,6 +185,17 @@ class PWDump:
         # raw_decode doesn't like leading whitespace.
         self.buffer = self.buffer[index:].lstrip()
         return data
+
+    def blocking_generator(self, timeout=None):
+        """This is a blocking generator that blocks until more data is available.
+
+        Without any timeout, it is an infinite generator that never ends.
+        """
+        while True:
+            ready, _, _ = select.select([self], [], [], timeout)
+            if len(ready) == 0:
+                return
+            yield from self
 
 
 class PWObject:

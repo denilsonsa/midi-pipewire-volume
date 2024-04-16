@@ -1,7 +1,7 @@
 from queue import Queue
 from threading import Thread
 
-from .pypewyre import PWDump, PWState, PWObject, volume_to_linear, volume_from_linear
+from .pypewyre import PWDump, PWState
 
 # pip install 'mido[ports-rtmidi]'
 import mido
@@ -22,10 +22,17 @@ def midi_producer(ports, q:Queue):
 
 
 def main():
+    # Both threads put events into this queue.
     main_queue = Queue()
 
+    # A local copy of the PipeWire server state.
+    pw_state = PWState()
+
+    # pw-dump --monitor
     pw_thread = Thread(daemon=True, target=pw_dump_producer, args=(main_queue,))
 
+    # MIDI
+    # TODO: Make the list of ports dynamic. You know, when MIDI devices get connected and disconnected.
     midi_ports = [
         mido.open_input(name)
         for name in mido.get_input_names()
@@ -39,9 +46,12 @@ def main():
         item = main_queue.get()
         match item:
             case ("pw", "RESET"):
-                print("pw RESET!")
-            case ("pw", obj):
-                print("pw list of size ", len(obj))
+                # print("pw RESET!")
+                pw_state.update("RESET")
+            case ("pw", objs):
+                # print("pw list of size ", len(objs))
+                pw_state.update(objs)
+                # print("state size:", len(pw_state.db))
             case ("midi", port, msg):
                 print("midi from", port, " => ", msg)
             case _:

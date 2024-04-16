@@ -221,6 +221,8 @@ class PWObject:
 
     @cached_property
     def direction(self):
+        # input
+        # output
         return self.info.get("direction", "")
 
     @cached_property
@@ -228,8 +230,15 @@ class PWObject:
         return self.info.get("props", {})
 
     @cached_property
+    def port_direction(self):
+        # in
+        # out
+        return self.props.get("port.direction", "")
+
+    @cached_property
     def node_description(self):
         return self.props.get("node.description", "")
+
     @cached_property
     def node_name(self):
         return self.props.get("node.name", "")
@@ -243,18 +252,60 @@ class PWObject:
         return self.props.get("device.id", "")
 
     @cached_property
+    def device_description(self):
+        return self.props.get("device.description", "")
+
+    @cached_property
+    def device_nick(self):
+        return self.props.get("device.nick", "")
+
+    @cached_property
+    def device_string(self):
+        return self.props.get("device.string", "")
+
+    @cached_property
+    def device_bus(self):
+        # bluetooth
+        # pci
+        # usb
+        return self.props.get("device.bus", "")
+
+    @cached_property
+    def device_form_factor(self):
+        # internal
+        # microphone
+        # headphone
+        # webcam
+        # ...
+        return self.props.get("device.form-factor", "")
+
+    @cached_property
+    def device_icon_name(self):
+        return self.props.get("device.icon-name", "")
+
+    @cached_property
     def node_id(self):
         return self.props.get("device.id", "")
 
     @cached_property
     def media_class(self):
+        # Available in Nodes.
         return self.props.get("media.class", "")
+
+    @cached_property
+    def format_dsp(self):
+        # Available in Ports.
+        return self.props.get("format.dsp", "")
 
     @cached_property
     def is_sink(self):
         # Audio/Sink
         # Stream/Input/Audio
-        return "Sink" in self.media_class or "Input" in self.media_class
+        return (
+            False
+            or "Sink" in self.media_class
+            or "Input" in self.media_class
+        )
 
     @cached_property
     def is_source(self):
@@ -262,7 +313,11 @@ class PWObject:
         # Audio/Source/Virtual
         # Stream/Output/Audio
         # Video/Source
-        return "Source" in self.media_class or "Output" in self.media_class
+        return (
+            False
+            or "Source" in self.media_class
+            or "Output" in self.media_class
+        )
 
     @cached_property
     def is_audio(self):
@@ -270,7 +325,11 @@ class PWObject:
         # Audio/Sink
         # Audio/Source
         # Audio/Source/Virtual
-        return "Audio" in self.media_class
+        return (
+            False
+            or "Audio" in self.media_class
+            or "audio" in self.format_dsp
+        )
 
     @cached_property
     def is_video(self):
@@ -281,7 +340,11 @@ class PWObject:
     @cached_property
     def is_midi(self):
         # Midi/Bridge
-        return "Midi" in self.media_class
+        return (
+            False
+            or "Midi" in self.media_class
+            or "midi" in self.format_dsp
+        )
 
     @cached_property
     def media_name(self):
@@ -296,26 +359,42 @@ class PWObject:
         return self.props.get("device.profile.name", "")
 
     @cached_property
+    def port_alias(self):
+        return self.props.get("port.alias", "")
+
+    @cached_property
+    def port_name(self):
+        return self.props.get("port.name", "")
+
+    @cached_property
     def name(self):
         pprint({
             k: self.getattr(k)
             for k in [
-                "node_nick",
-                "node_name",
-                "node_description",
-                "media_name",
+                "device_description",
+                "device_nick",
                 "device_profile_description",
                 "device_profile_name",
+                "media_name",
+                "node_description",
+                "node_name",
+                "node_nick",
+                "port_alias",
+                "port_name",
             ]
         })
         return (
             None
             # or self.node_nick  # ← This isn't helpful, as my both HDMI outputs have the same nick
+            or self.device_nick
+            or self.device_description
             or self.device_profile_description
             or self.node_description
             or self.media_name
             or self.device_profile_name
             or self.node_name
+            or self.port_alias
+            or self.port_name
         )
 
     @cached_property
@@ -440,20 +519,20 @@ class PWState:
     def __repr__(self):
         return "<PWState size={}>".format(len(self.db))
 
-    def update(self, iterable):
-        """Update its own internal state, based on the iterable.
+    def update(self, data):
+        """Update its own internal state, based on the data.
 
-        The iterable must be a stream of data coming from a PWDump object.
+        The data must be coming from a PWDump object.
         """
         with self.lock:
-            for data in iterable:
-                # It's either a "RESET" string...
-                if data == "RESET":
-                    self.db = {}
+            # It's either a "RESET" string...
+            if data == "RESET":
+                self.db = {}
+            else:
                 # Or a list of PipeWire objects.
                 for obj in data:
                     id = obj["id"]
-                    if obj["info"] is None:
+                    if obj.get("info", {}) is None:
                         del self.db[id]
                     else:
                         self.db[id] = PWObject(obj)
@@ -490,3 +569,102 @@ class PWState:
         for obj in self.query_all(**filters):
             return obj
         return None
+
+
+# TODO: Rewrite and tidy up this!
+# This works for setting the volume of applications (Stream/Input/Audio and Stream/Output/Audio).
+def terrible_set_volume(id, channels=None, linear:float=None, raw:float=None):
+    # TODO: Support "mute".
+    # TODO: Support specific channels.
+    if linear is None and raw is None:
+        raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and none were passed.")
+    if linear is not None and raw is not None:
+        raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and both were passed.")
+
+    obj = next(pw_filter(pw_dump(), id={id}))
+    channelVolumes = obj["info"]["params"].get("Props", [])[0].get("channelVolumes")
+
+    if raw is None:
+        raw = volume_from_linear(linear)
+
+    assert raw is not None
+    raw = max(0.0, raw)
+
+    props = {}
+
+    if False:  # TODO: Mute
+        props["mute"] = False
+
+    props["channelVolumes"] = [raw for i in channelVolumes]
+    #props["softVolumes"] = props["channelVolumes"]
+
+    print(json.dumps(props))
+
+    subprocess.run(
+        ["pw-cli", "set-param", str(id), "Props", json.dumps(props)]
+    )
+
+
+# TODO: Rewrite and tidy up this!
+# This works for setting the volume of devices/ports (Audio Sinks and Sources).
+def terrible2_set_volume(id, *, channels:set=None, linear:float=None, raw:float=None, mute:bool=None):
+    # Ideas:
+    # * Get rid of "raw". No one cares. And it simplifies the code a lot.
+    # * Pass the volume as either:
+    #     * float: applies to all channels, e.g. 0.50
+    #     * dict: applies to each channel, e.g. { "FR": 0.50, "FL": 0.25 }
+    # * Pass two volume parameters: one for relative amounts, another for absolute amounts.
+    # * For relative amounts, also pass an optional limit (that clamps to 100%).
+    # * Range is still from 0.0 to 1.0 mapping from 0% to 100%.
+    if mute is None:
+        if linear is None and raw is None:
+            raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and none were passed.")
+        if linear is not None and raw is not None:
+            raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and both were passed.")
+
+    if raw is None and linear is not None:
+        raw = volume_from_linear(linear)
+    if raw is not None:
+        raw = max(0.0, raw)
+
+    dump = pw_dump()
+    obj = next(pw_filter(dump, id={id}))
+    device_id = obj["info"]["props"]["device.id"]
+    dev = next(pw_filter(dump, id={device_id}))
+
+    for route in dev["info"]["params"]["Route"]:
+        if all(x in route for x in ["info", "props", "device", "index"]):
+            route_index = route["index"]
+            route_device = route["device"]
+            route_props = route["props"]
+            break
+    else:
+        raise RuntimeError("Could not find the route for node {} device {}".format(id, device_id))
+
+    # pw-cli s <device-id> Route '{ index: <route-index>, device: <card-profile-device>, props: { mute: false, channelVolumes: [ 0.5, 0.5 ] }, save: true }'
+
+    channelVolumes = route_props["channelVolumes"]
+    channelMap = route_props["channelMap"]
+
+    props = {}
+
+    if mute is not None:
+        props["mute"] = mute
+    if raw is not None:
+        newVolumes = [
+            raw if channels is None or ch_name in channels else old_vol
+            for (ch_name, old_vol) in zip(channelMap, channelVolumes)
+        ]
+        props["channelVolumes"] = newVolumes
+
+    new_value = {
+        "index": route_index,
+        "device": route_device,
+        "props": props,
+        "save": True,
+    }
+    pprint(json.dumps(new_value))
+
+    subprocess.run(
+        ["pw-cli", "set-param", str(device_id), "Route", json.dumps(new_value)]
+    )

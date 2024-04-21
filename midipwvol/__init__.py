@@ -1,7 +1,12 @@
+import sys
+
 from queue import Queue
 from threading import Thread
 
-from .pypewyre import PWDump, PWState
+from .pypewyre import PWDump, PWState, PWQueryResult
+
+# pip install xdg-base-dirs
+from xdg_base_dirs import xdg_config_home
 
 # pip install 'mido[ports-rtmidi]'
 import mido
@@ -11,22 +16,34 @@ import mido
 
 
 def pw_dump_producer(q:Queue):
+    # This function runs in a separate thread.
     p = PWDump()
     for obj in p.blocking_generator():
         q.put(("pw", obj))
 
 
 def midi_producer(ports, q:Queue):
+    # This function runs in a separate thread.
     for (port, msg) in mido.ports.multi_receive(ports, yield_ports=True, block=True):
         q.put(("midi", port, msg))
 
 
 def main():
+    # Try loading custom config from ~/.config/midipwvol/
+    sys.path.insert(0, xdg_config_home() / "midipwvol")
+    import midipwvolconfig
+
     # Both threads put events into this queue.
     main_queue = Queue()
 
     # A local copy of the PipeWire server state.
     pw_state = PWState()
+
+    def pw(**filters):
+        # Inspired by jQuery.
+        # Receives filters, returns a magic PWQueryResult.
+        # Closure: encapsulates the pw_state variable.
+        return PWQueryResult(pw_state, pw_state.query_all(**filters))
 
     # pw-dump --monitor
     pw_thread = Thread(daemon=True, target=pw_dump_producer, args=(main_queue,))
@@ -54,5 +71,6 @@ def main():
                 # print("state size:", len(pw_state.db))
             case ("midi", port, msg):
                 print("midi from", port, " => ", msg)
+                midipwvolconfig.handle_midi_message(port=port, message=msg, pw=pw)
             case _:
                 raise ValueError("Invalid item in the main_queue: {!r}".format(item))

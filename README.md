@@ -20,19 +20,22 @@ Goals:
 
 ## TODO
 
-* [ ] Write a nice `set_volume` function that...
-    * Accepts absolute or relative amounts.
-    * Has a maximum limit for relative amounts.
-    * Uses percent values (i.e. from 0 to 100), because adding `1` is easier and more precise than adding `0.01`.
-    * Allows setting or toggling `mute`.
+* [x] Write a nice `set_volume` function that...
+    * Accepts absolute amounts.
+    * ~~Uses percent values (i.e. from 0 to 100), because adding `1` is easier and more precise than adding `0.01`~~.
+    * Allows setting `mute`.
     * Allows per-channel changes.
-    * Good luck figuring out an easy-to-use API that allows it all.
-    * Uses the correct code, depending on the object type.
-* [ ] Hard-code changing the volume from a MIDI CC event.
+* [ ] Write a nice `change_volume` function that...
+    * Accepts relative amounts.
+    * Has a maximum limit for relative amounts.
+    * ~~Uses percent values (i.e. from 0 to 100), because adding `1` is easier and more precise than adding `0.01`.~~
+    * Allows toggling `mute`.
+    * Allows per-channel changes.
+* [x] Hard-code changing the volume from a MIDI CC event.
 * [ ] Write a nice function to change the default input/output device.
 * [ ] Write a nice function to change the profile of a device.
 * [ ] Write a lot of unit tests, possibly as doctests.
-* [ ] Figure out a nice configuration format. Or maybe just a simple API so that users can write their own code.
+* [x] Figure out a nice configuration format. Or maybe just a simple API so that users can write their own code.
 * [ ] Write a debouncing/throttle function. Maybe.
 * [ ] Write a function to send updates to `ddcutil-service`.
 * [ ] Write a help function. Well, just use `argparse`. But write a parameter that prints out:

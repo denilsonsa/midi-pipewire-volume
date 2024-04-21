@@ -271,6 +271,14 @@ class PWObject:
         return self.props.get("device.bus", "")
 
     @cached_property
+    def device_api(self):
+        # alsa
+        # bluez5
+        # libcamera
+        # v4l2
+        return self.props.get("device.api", "")
+
+    @cached_property
     def device_form_factor(self):
         # internal
         # microphone
@@ -282,6 +290,19 @@ class PWObject:
     @cached_property
     def device_icon_name(self):
         return self.props.get("device.icon-name", "")
+
+    @cached_property
+    def card_profile_device(self):
+        # Used to find the correct route.
+        return self.props.get("card.profile.device", "")
+
+    @cached_property
+    def alsa_id(self):
+        # ALC221 Analog
+        # USB Audio
+        # HDMI 0
+        # HDMI 1
+        return self.props.get("alsa.id", "")
 
     @cached_property
     def node_id(self):
@@ -368,21 +389,23 @@ class PWObject:
 
     @cached_property
     def name(self):
-        pprint({
-            k: self.getattr(k)
-            for k in [
-                "device_description",
-                "device_nick",
-                "device_profile_description",
-                "device_profile_name",
-                "media_name",
-                "node_description",
-                "node_name",
-                "node_nick",
-                "port_alias",
-                "port_name",
-            ]
-        })
+        if False:
+            # Just for debugging.
+            pprint({
+                k: getattr(self, k)
+                for k in [
+                    "device_description",
+                    "device_nick",
+                    "device_profile_description",
+                    "device_profile_name",
+                    "media_name",
+                    "node_description",
+                    "node_name",
+                    "node_nick",
+                    "port_alias",
+                    "port_name",
+                ]
+            })
         return (
             None
             # or self.node_nick  # ← This isn't helpful, as my both HDMI outputs have the same nick
@@ -546,7 +569,7 @@ class PWState:
     def get_by_id(self, id):
         """Returns the single object with that id.
         """
-        for obj in self.get_by_ids([id]):
+        for obj in self.get_by_ids(id):
             return obj
         return None
 
@@ -571,100 +594,111 @@ class PWState:
         return None
 
 
-# TODO: Rewrite and tidy up this!
-# This works for setting the volume of applications (Stream/Input/Audio and Stream/Output/Audio).
-def terrible_set_volume(id, channels=None, linear:float=None, raw:float=None):
-    # TODO: Support "mute".
-    # TODO: Support specific channels.
-    if linear is None and raw is None:
-        raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and none were passed.")
-    if linear is not None and raw is not None:
-        raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and both were passed.")
+class PWQueryResult:
+    def __init__(self, state, objs):
+        self.state = state
+        self.iterator = iter(objs)  # A list or a generator.
 
-    obj = next(pw_filter(pw_dump(), id={id}))
-    channelVolumes = obj["info"]["params"].get("Props", [])[0].get("channelVolumes")
+    def get(self):
+        # Returns one single object.
+        return next(self.iterator)
 
-    if raw is None:
-        raw = volume_from_linear(linear)
+    def set_volume(self, *args, **kwargs):
+        # Applies the volume to all objects.
+        for obj in self.iterator:
+            set_volume_absolute(self.state, obj.id, *args, **kwargs)
 
-    assert raw is not None
-    raw = max(0.0, raw)
+# TODO:
+# * Write a get_volume
+# * Write a set_volume_relative. It should also have a limit parameter to clamp to 100%.
 
-    props = {}
+def set_volume_absolute(state:PWState, id:int, volume:float|list|dict=None, *, mute:bool=None):
+    if volume is None and mute is None:
+        raise ValueError("At least one of `volume` and `mute` must be passed.")
 
-    if False:  # TODO: Mute
-        props["mute"] = False
+    obj = state.get_by_id(id)
+    if obj is None:
+        raise ValueError("The id={} is invalid or not found.".format(id))
+    if obj.type != "Node":
+        raise ValueError("Pipewire object id={} has the wrong type, expected 'Node' but got {}.".format(id, obj.type))
 
-    props["channelVolumes"] = [raw for i in channelVolumes]
-    #props["softVolumes"] = props["channelVolumes"]
-
-    print(json.dumps(props))
-
-    subprocess.run(
-        ["pw-cli", "set-param", str(id), "Props", json.dumps(props)]
-    )
-
-
-# TODO: Rewrite and tidy up this!
-# This works for setting the volume of devices/ports (Audio Sinks and Sources).
-def terrible2_set_volume(id, *, channels:set=None, linear:float=None, raw:float=None, mute:bool=None):
-    # Ideas:
-    # * Get rid of "raw". No one cares. And it simplifies the code a lot.
-    # * Pass the volume as either:
-    #     * float: applies to all channels, e.g. 0.50
-    #     * dict: applies to each channel, e.g. { "FR": 0.50, "FL": 0.25 }
-    # * Pass two volume parameters: one for relative amounts, another for absolute amounts.
-    # * For relative amounts, also pass an optional limit (that clamps to 100%).
-    # * Range is still from 0.0 to 1.0 mapping from 0% to 100%.
-    if mute is None:
-        if linear is None and raw is None:
-            raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and none were passed.")
-        if linear is not None and raw is not None:
-            raise ValueError("Exactly one of `linear` and `raw` parameters should be given, and both were passed.")
-
-    if raw is None and linear is not None:
-        raw = volume_from_linear(linear)
-    if raw is not None:
-        raw = max(0.0, raw)
-
-    dump = pw_dump()
-    obj = next(pw_filter(dump, id={id}))
-    device_id = obj["info"]["props"]["device.id"]
-    dev = next(pw_filter(dump, id={device_id}))
-
-    for route in dev["info"]["params"]["Route"]:
-        if all(x in route for x in ["info", "props", "device", "index"]):
-            route_index = route["index"]
-            route_device = route["device"]
-            route_props = route["props"]
+    old_props = None
+    for p in obj.Props:
+        if all(x in p for x in ["channelVolumes", "mute"]):
+            old_props = p
             break
     else:
-        raise RuntimeError("Could not find the route for node {} device {}".format(id, device_id))
+        # Warning! Props not found!
+        pass
 
-    # pw-cli s <device-id> Route '{ index: <route-index>, device: <card-profile-device>, props: { mute: false, channelVolumes: [ 0.5, 0.5 ] }, save: true }'
+    # For certain kinds of nodes/objects, we have to navigate to the route of the device.
+    dev_id = obj.device_id
+    dev_obj = None
+    if dev_id:
+        dev_obj = state.get_by_id(dev_id)
+        if dev_obj is None:
+            raise ValueError("The device.id={} from the object id={} is invalid or not found.".format(dev_id, id))
+        for route in dev_obj.Route:
+            if all(x in route for x in ["info", "props", "device", "index"]) and route["device"] == obj.card_profile_device:
+                route_index = route["index"]
+                route_device = route["device"]
+                route_props = route["props"]
+                old_props = route_props
+                break
+        else:
+            raise RuntimeError("Could not find the route for node {} device {}".format(id, device_id))
 
-    channelVolumes = route_props["channelVolumes"]
-    channelMap = route_props["channelMap"]
-
-    props = {}
+    # old_props should be valid now.
+    # Either coming from the Node object, or from the Device object.
+    if not old_props:
+        raise RuntimeError("Could not find the Props object. obj={} dev_obj={}".format(obj, dev_obj))
+    new_props = {}
 
     if mute is not None:
-        props["mute"] = mute
-    if raw is not None:
-        newVolumes = [
-            raw if channels is None or ch_name in channels else old_vol
-            for (ch_name, old_vol) in zip(channelMap, channelVolumes)
+        new_props["mute"] = mute
+
+    if isinstance(volume, float):
+        # Single number.
+        # We replicate the number multiple times, repeating it for each channel.
+        vol = volume_from_linear(volume)
+        new_props["channelVolumes"] = [vol for i in old_props["channelVolumes"]]
+    elif isinstance(volume, list):
+        # List of numbers.
+        # We assume the list has the same amount of numbers as the amount of channels.
+        if len(volume) != len(old_props["channelVolumes"]):
+            raise ValueError("Volume (as list) for this object expected exactly {} elements, but {} were passed.".format(len(old_props["channelVolumes"]), len(volume)))
+        new_props["channelVolumes"] = [volume_from_linear(vol) for vol in volume]
+    elif isinstance(volume, dict):
+        # Dict of strings to numbers.
+        # Specific channels from the dict will have the volume changed.
+        # Any channel not listed in the dict will retain the previous volume.
+        new_props["channelVolumes"] = [
+            volume_from_linear(volume[ch_name]) if ch_name in volume else old_props["channelVolumes"][i]
+            for (i, ch_name) in enumerate(route["channelMap"])
         ]
-        props["channelVolumes"] = newVolumes
 
-    new_value = {
-        "index": route_index,
-        "device": route_device,
-        "props": props,
-        "save": True,
-    }
-    pprint(json.dumps(new_value))
-
-    subprocess.run(
-        ["pw-cli", "set-param", str(device_id), "Route", json.dumps(new_value)]
-    )
+    if dev_id:
+        # device_id?
+        # Then we are setting the volume of hardware audio sources/sinks. (Or virtual ones.)
+        # We can't set the volume of the device itself, because a single device
+        # can have multiple routes, mapped to multiple Node objects.
+        # (e.g. `HDA Intel PCH` can have routes to analog 3.5mm input/output jack, and also to the HDMI ports.)
+        new_value = {
+            "index": route_index,
+            "device": route_device,
+            "props": new_props,
+            "save": True,
+        }
+        pprint(new_value)
+        subprocess.run(
+            ["pw-cli", "set-param", str(dev_id), "Route", json.dumps(new_value)],
+            stdout=subprocess.DEVNULL,
+        )
+    else:
+        # No device_id?
+        # Then we are setting the volume of applications (Stream/Input/Audio and Stream/Output/Audio).
+        # pprint(new_props)
+        subprocess.run(
+            ["pw-cli", "set-param", str(id), "Props", json.dumps(new_props)],
+            stdout=subprocess.DEVNULL,
+        )

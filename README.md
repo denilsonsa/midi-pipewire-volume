@@ -36,8 +36,9 @@ Goals:
 * [ ] Write a nice function to change the profile of a device.
 * [ ] Write a lot of unit tests, possibly as doctests.
 * [x] Figure out a nice configuration format. Or maybe just a simple API so that users can write their own code.
-* [ ] Write a debouncing/throttle function. Maybe.
-* [ ] Write a function to send updates to `ddcutil-service`.
+* [x] Write a debouncing/throttle function. Maybe.
+    * [ ] Get rid of this debouncing function. Doesn't work well enough for this use-case. (The implementation is correct, but it's the wrong tool for this job.)
+* [x] Write a function to send updates to `ddcutil-service`.
 * [ ] Write a help function. Well, just use `argparse`. But write a parameter that prints out:
     * All the currently available MIDI devices/ports.
     * All the audio devices/nodes/etc.

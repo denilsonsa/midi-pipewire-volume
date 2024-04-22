@@ -3,6 +3,7 @@ import sys
 from queue import Queue
 from threading import Thread
 
+from .ddcutil_service import DdcutilInterface
 from .pypewyre import PWDump, PWState, PWQueryResult
 
 # pip install xdg-base-dirs
@@ -36,6 +37,7 @@ def main():
     # Both threads put events into this queue.
     main_queue = Queue()
 
+    # -- Pipewire --
     # A local copy of the PipeWire server state.
     pw_state = PWState()
 
@@ -48,13 +50,17 @@ def main():
     # pw-dump --monitor
     pw_thread = Thread(daemon=True, target=pw_dump_producer, args=(main_queue,))
 
-    # MIDI
+    # -- MIDI --
     # TODO: Make the list of ports dynamic. You know, when MIDI devices get connected and disconnected.
     midi_ports = [
         mido.open_input(name)
         for name in mido.get_input_names()
     ]
     midi_thread = Thread(daemon=True, target=midi_producer, args=(midi_ports, main_queue))
+
+    # -- ddcutil-service --
+    # Initializing the proxy object:
+    ddc = DdcutilInterface(service_name="com.ddcutil.DdcutilService", object_path="/com/ddcutil/DdcutilObject")
 
     pw_thread.start()
     midi_thread.start()
@@ -71,6 +77,6 @@ def main():
                 # print("state size:", len(pw_state.db))
             case ("midi", port, msg):
                 print("midi from", port, " => ", msg)
-                midipwvolconfig.handle_midi_message(port=port, message=msg, pw=pw)
+                midipwvolconfig.handle_midi_message(port=port, message=msg, pw=pw, ddc=ddc)
             case _:
                 raise ValueError("Invalid item in the main_queue: {!r}".format(item))

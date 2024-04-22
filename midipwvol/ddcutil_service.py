@@ -59,7 +59,8 @@ class DdcutilInterface(DbusInterfaceCommon, interface_name="com.ddcutil.DdcutilI
         # * error_message (string)
         raise NotImplementedError
 
-    def set_brightness_contrast(self, displays:list[int], brightness=None, contrast=None, wait=0.25):
+    def set_brightness_contrast(self, displays:list[int], brightness:float=None, contrast:float=None, wait=0.25):
+        # brightness/contrast are in the 0.0 to 1.0 range.
         # Schedules the display/brightness/contrast values to be updated by the timer thread.
         if self.timer_thread:
             self.timer_thread.cancel()
@@ -80,9 +81,10 @@ class DdcutilInterface(DbusInterfaceCommon, interface_name="com.ddcutil.DdcutilI
             for display, values in list(self.future_values.items()):
                 del self.future_values[display]
                 if (v := values.brightness) is not None:
-                    actions.append((display, 0x10, int(v)))
+                    actions.append((display, 0x10, round(100 * v)))
                 if (v := values.contrast) is not None:
-                    actions.append((display, 0x12, int(v)))
+                    actions.append((display, 0x12, round(100 * v)))
 
+        print(repr(actions))
         for (display, code, value) in actions:
             self.SetVcp(display, "", code, value, 0)

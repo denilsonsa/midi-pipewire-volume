@@ -15,6 +15,6 @@ def handle_midi_message(port, message, pw, ddc):
     elif message.is_cc(4):
         pw(type="Node", media_name="Jellyfin", node_name="Firefox", is_audio=True, is_source=True).set_volume(message.value / 127)
     elif message.is_cc(5):
-        ddc.set_brightness_contrast([1], brightness=message.value * 100 / 127)
+        ddc.set_brightness_contrast([1, 2], brightness=message.value * 100 / 127)
     elif message.is_cc(6):
-        ddc.set_brightness_contrast([1], contrast=message.value * 100 / 127)
+        ddc.set_brightness_contrast([1, 2], contrast=message.value * 100 / 127)

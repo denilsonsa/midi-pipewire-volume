@@ -20,6 +20,11 @@ Goals:
 
 ## TODO
 
+* [ ] Write a better README file.
+    * Explain what this tool does, what it does not, and what are the alternative tools.
+    * Step-by-step installation instructions.
+    * Some configuration examples.
+    * Video showing a live recording of this tool working.
 * [x] Write a nice `set_volume` function that...
     * Accepts absolute amounts.
     * ~~Uses percent values (i.e. from 0 to 100), because adding `1` is easier and more precise than adding `0.01`~~.
@@ -34,7 +39,12 @@ Goals:
 * [x] Hard-code changing the volume from a MIDI CC event.
 * [ ] Write a nice function to change the default input/output device.
 * [ ] Write a nice function to change the profile of a device.
+* [ ] Allow changing the volume/mute of the default device.
+* [ ] Let the user (i.e. the config file) decide if a MIDI device should be auto-connected to this tool.
+* [ ] Auto-connect MIDI devices when they get hot-plugged.
+* [ ] Write a lot of docstrings. Documentation is important.
 * [ ] Write a lot of unit tests, possibly as doctests.
+* [ ] Apply a Python linter/formatter such as Black or Ruff.
 * [x] Figure out a nice configuration format. Or maybe just a simple API so that users can write their own code.
 * [x] Write a function to send updates to `ddcutil-service`.
 * [ ] Write a help function. Well, just use `argparse`. But write a parameter that prints out:

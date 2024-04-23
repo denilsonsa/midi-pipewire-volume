@@ -2,6 +2,9 @@
 # Should be located at ~/.config/midipwvol/midipwvolconfig.py
 
 
+from midipwvol.utils import interp
+
+
 def handle_midi_message(port, message, pw, ddc):
     if message.is_cc(0):
         pw(type="Node", node_description="Built-in Audio Analog Stereo", is_audio=True, is_sink=True).set_volume(message.value / 127)
@@ -31,10 +34,10 @@ def handle_midi_message(port, message, pw, ddc):
         LIMIT = 32  # out of 0~127 range
         ddc.set_brightness_contrast(
             displays=[1, 2],
-            # From 0..LIMIT, brightness is 0.
-            # From LIMIT..127, brightness is linearly scaled from 0% to 100%.
-            brightness=max(0.00, 1.00 * (v - LIMIT) / (127 - LIMIT)),
-            # From 0..LIMIT, contrast is linearly scaled from 0% to 50%.
-            # From LIMIT..127, contrast is 50.
-            contrast=min(0.50, 0.50 * v / LIMIT),
+            # Brightness is zero for values from 0 to 32,
+            # then it increases linearly until 100%.
+            brightness=interp(message.value, [(0, 0.0), (32, 0.0), (127, 1.0)]),
+            # Contrast is linear from 0% to until 50% at value 32,
+            # then it stays constant at 50% for higher values.
+            contrast=interp(message.value, [(0, 0.0), (32, 0.5), (127, 0.5)]),
         )

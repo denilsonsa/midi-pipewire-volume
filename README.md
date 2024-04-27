@@ -42,6 +42,14 @@ Goals:
 * [ ] Allow changing the volume/mute of the default device.
 * [ ] Let the user (i.e. the config file) decide if a MIDI device should be auto-connected to this tool.
 * [ ] Auto-connect MIDI devices when they get hot-plugged.
+* [ ] Send values back to the MIDI device
+    * [ ] Send volume changes. (Requires figuring out how to detect volume changes.)
+    * [ ] Send brightness/contrast VDU changes. (Requires receiving signals from ddcutil-session, not sure if it is possible.
+    * [ ] Buy or borrow a MIDI device that I can test. Maybe I should just connect to my Akai Play Mini and map it to one of the knobs.
+* [ ] Allow changing the backlight. Can be tricky, as I don't have a laptop to test it on.
+    * [ ] Change the laptop backlight.
+    * [ ] Change the keyboard backlight.
+    * [ ] Maybe just a convenience function to write to an arbitrary file. That would allow changing the LED color of a connected PS4 controller.
 * [ ] Write a lot of docstrings. Documentation is important.
 * [ ] Write a lot of unit tests, possibly as doctests.
 * [ ] Apply a Python linter/formatter such as Black or Ruff.
@@ -54,7 +62,6 @@ Goals:
     * Incoming MIDI messages.
     * Heck, this is just a `--verbose` mode!
 * [ ] Write a `--dry-run` parameter, that won't change the volume or the brightness.
-* [ ] Maybe write any volume changes to a MIDI output, as that could allow motorized sliders react to software volume changes. I don't have such device (it's expensive!), so I cannot test it.
 
 ## Further links
 

@@ -46,6 +46,7 @@ Goals:
     * [ ] Send volume changes. (Requires figuring out how to detect volume changes.)
     * [ ] Send brightness/contrast VDU changes. (Requires receiving signals from ddcutil-session, not sure if it is possible.
     * [ ] Buy or borrow a MIDI device that I can test. Maybe I should just connect to my Akai Play Mini and map it to one of the knobs.
+* [ ] Write some wrapper code to auto-reconnect to D-Bus when needed. (`sd_bus_internals.SdBusUnmappedMessageError` exception)
 * [ ] Allow changing the backlight. Can be tricky, as I don't have a laptop to test it on.
     * [ ] Change the laptop backlight.
     * [ ] Change the keyboard backlight.

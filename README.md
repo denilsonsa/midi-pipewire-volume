@@ -56,6 +56,7 @@ Goals:
 * [ ] Apply a Python linter/formatter such as Black or Ruff.
 * [x] Figure out a nice configuration format. Or maybe just a simple API so that users can write their own code.
 * [x] Write a function to send updates to `ddcutil-service`.
+* [ ] Allow toggling/setting/resetting the "Manually block display from sleeping". It's an option available on KDE, I'm not sure if applications can access that.
 * [ ] Write a help function. Well, just use `argparse`. But write a parameter that prints out:
     * All the currently available MIDI devices/ports.
     * All the audio devices/nodes/etc.

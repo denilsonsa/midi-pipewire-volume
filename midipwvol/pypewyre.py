@@ -556,7 +556,13 @@ class PWState:
                 for obj in data:
                     id = obj["id"]
                     if obj.get("info", {}) is None:
-                        del self.db[id]
+                        if id in self.db:
+                            del self.db[id]
+                        else:
+                            # We won't delete an entry that we don't have.
+                            # I don't even understand why this case happens,
+                            # but it does happen. Very often.
+                            pass
                     else:
                         self.db[id] = PWObject(obj)
 

@@ -1,0 +1,3 @@
+mido[ports-rtmidi]
+sdbus
+xdg-base-dirs

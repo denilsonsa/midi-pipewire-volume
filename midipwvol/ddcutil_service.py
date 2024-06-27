@@ -5,6 +5,8 @@ from threading import Lock, Timer
 # pip install sdbus
 # https://python-sdbus.readthedocs.io/en/latest/general.html
 from sdbus import DbusInterfaceCommon, dbus_method, dbus_property
+from sdbus import sd_bus_open, set_default_bus
+from sdbus.exceptions import SdBusUnmappedMessageError
 # If sdbus doesn't work well, maybe worth trying the alternatives listed at:
 # https://gitlab.freedesktop.org/dbus/dbus-python/
 
@@ -25,6 +27,18 @@ class DdcutilInterface(DbusInterfaceCommon, interface_name="com.ddcutil.DdcutilI
         self.future_values = defaultdict(DisplayValues)
 
         super().__init__(*args, **kwargs)
+
+    def _auto_reconnect(self):
+        # This method is a hack.
+        # It's using private attributes and may break on any sdbus update.
+        try:
+            self.dbus_ping()
+            print("dbus_ping ok")
+        except SdBusUnmappedMessageError:
+            print("dbus_ping failed")
+            new_bus = sd_bus_open()
+            self._dbus.attached_bus = new_bus
+            set_default_bus(new_bus)
 
     @dbus_method("u")
     def Detect(self, flags:int) -> tuple[int, list[tuple], int, str]:
@@ -86,5 +100,6 @@ class DdcutilInterface(DbusInterfaceCommon, interface_name="com.ddcutil.DdcutilI
                     actions.append((display, 0x12, round(100 * v)))
 
         print(repr(actions))
+        self._auto_reconnect()
         for (display, code, value) in actions:
             self.SetVcp(display, "", code, value, 0)
